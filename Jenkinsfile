@@ -15,11 +15,14 @@ node{
         tagName="3.0"
     }
     
-    stage('git code checkout'){
-        try{
-            echo 'checkout the code from git repository'
-            git 'https://github.com/shubhamkushwah123/star-agile-insurance-project.git'
-        }
+    stage('git code checkout') {
+    steps {
+        echo "checkout the code from git repository"
+        git credentialsId: 'github-token', url: 'https://github.com/Shriraksha384/star-agile-insurance-project.git', branch: 'master'
+    }
+}
+
+        
         catch(Exception e){
             echo 'Exception occured in Git Code Checkout Stage'
             currentBuild.result = "FAILURE"
