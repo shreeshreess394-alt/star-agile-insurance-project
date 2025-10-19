@@ -1,65 +1,79 @@
-node{
-    
-    def mavenHome
-    def mavenCMD
-    def docker
-    def dockerCMD
-    def tagName
-    
-    stage('prepare enviroment'){
-        echo 'initialize all the variables'
-        mavenHome = tool name: 'maven' , type: 'maven'
-        mavenCMD = "${mavenHome}/bin/mvn"
-        docker = tool name: 'docker' , type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
-        dockerCMD = "${docker}/bin/docker"
-        tagName="3.0"
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven'   // Jenkins tool name for Maven
+        // jdk 'jdk-17' // (Optional) Only enable if configured under Global Tools
     }
-    
-    stage('git code checkout'){
-        try{
-            echo 'checkout the code from git repository'
-            git 'https://github.com/shubhamkushwah123/star-agile-insurance-project.git'
+
+    environment {
+        DOCKERHUB_USER = "shriraksha384"   // ✅ Your real DockerHub username
+        IMAGE_NAME = "insure-me"
+        TAG = "1.0"
+    }
+
+    stages {
+
+        stage('Prepare Environment') {
+            steps {
+                echo "Initializing build environment..."
+                script {
+                    mavenHome = tool 'maven'
+                    mavenCMD = "${mavenHome}/bin/mvn"
+                    dockerHome = tool name: 'docker', type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
+                    dockerCMD = "${dockerHome}/bin/docker"
+                }
+            }
         }
-        catch(Exception e){
-            echo 'Exception occured in Git Code Checkout Stage'
-            currentBuild.result = "FAILURE"
-            emailext body: '''Dear All,
-            The Jenkins job ${JOB_NAME} has been failed. Request you to please have a look at it immediately by clicking on the below link. 
-            ${BUILD_URL}''', subject: 'Job ${JOB_NAME} ${BUILD_NUMBER} is failed', to: 'shubham@gmail.com'
+
+        stage('Git Checkout') {
+            steps {
+                echo "Cloning the repository..."
+                git credentialsId: 'github-token', url: 'https://github.com/Shriraksha384/star-agile-insurance-project.git', branch: 'master'
+            }
         }
-    }
-    
-    stage('Build the Application'){
-        echo "Cleaning... Compiling...Testing... Packaging..."
-        //sh 'mvn clean package'
-        sh "${mavenCMD} clean package"        
-    }
-    
-    stage('publish test reports'){
-        publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/Capstone-Project-Live-Demo/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
-    }
-    
-    stage('Containerize the application'){
-        echo 'Creating Docker image'
-        sh "${dockerCMD} build -t shubhamkushwah123/insure-me:${tagName} ."
-    }
-    
-    stage('Pushing it ot the DockerHub'){
-        echo 'Pushing the docker image to DockerHub'
-        withCredentials([string(credentialsId: 'dock-password', variable: 'dockerHubPassword')]) {
-        sh "${dockerCMD} login -u shubhamkushwah123 -p ${dockerHubPassword}"
-        sh "${dockerCMD} push shubhamkushwah123/insure-me:${tagName}"
-            
+
+        stage('Maven Build') {
+            steps {
+                echo "Running Maven Build..."
+                sh "${mavenCMD} clean package"
+            }
         }
-        
-    stage('Configure and Deploy to the test-server'){
-        ansiblePlaybook become: true, credentialsId: 'ansible-key', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker Image..."
+                sh "${dockerCMD} build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${TAG} ."
+            }
+        }
+
+        stage('Push Docker Image to DockerHub') {
+            steps {
+                echo "Pushing Docker Image to DockerHub..."
+                withCredentials([usernamePassword(credentialsId: 'docker-password', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh "echo ${DOCKER_PASS} | ${dockerCMD} login -u ${DOCKER_USER} --password-stdin"
+                    sh "${dockerCMD} push ${DOCKER_USER}/${IMAGE_NAME}:${TAG}"
+                }
+            }
+        }
+
+        // ✅ Uncomment this after Ansible setup is ready
+        /*
+        stage('Deploy using Ansible') {
+            steps {
+                echo "Deploying Application on Test Server..."
+                ansiblePlaybook become: true, credentialsId: 'ansible-key', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+            }
+        }
+        */
     }
-        
-        
+
+    post {
+        success {
+            echo "✅ Build, Docker Image Creation & Push Completed Successfully!"
+        }
+        failure {
+            echo "❌ Build Failed — Check Jenkins Console Output."
+        }
     }
 }
-
-
-
-
