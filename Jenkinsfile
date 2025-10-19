@@ -41,13 +41,16 @@ node {
         sh "${dockerCMD} build -t shriraksha384/insure-me:${tagName} ."
     }
 
-    stage('Push Docker Image to DockerHub') {
-        echo '🚀 Pushing Docker image to DockerHub...'
-        withCredentials([usernamePassword(credentialsId: 'docker-password', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh "echo ${DOCKER_PASS} | ${dockerCMD} login -u ${DOCKER_USER} --password-stdin"
-            sh "${dockerCMD} push ${DOCKER_USER}/insure-me:${tagName}"
-        }
+   stage('Push Docker Image to DockerHub') {
+    echo "🚀 Pushing Docker image to DockerHub..."
+    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        sh """
+            echo ${DOCKER_PASS} | ${dockerCMD} login -u ${DOCKER_USER} --password-stdin
+            ${dockerCMD} push ${DOCKER_USER}/insure-me:${tagName}
+        """
     }
+}
+
 
     // Optional - Uncomment when Ansible is configured properly
     /*
